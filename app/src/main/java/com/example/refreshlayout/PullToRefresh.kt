@@ -1,6 +1,7 @@
 package com.example.refreshlayout
 
 import android.content.Context
+import android.os.AsyncTask
 import android.util.AttributeSet
 import android.util.Log
 import android.view.LayoutInflater
@@ -16,7 +17,21 @@ class PullToRefresh(context: Context, attrs: AttributeSet) : LinearLayout(contex
     private lateinit var listView: ListView
     private var hideHeaderHeight = 0
     private lateinit var layoutParams: MarginLayoutParams
+
+    /**
+     * 避免onLayout循环执行
+     */
     private var loadOnce = false
+
+    /**
+     * 记录手指按下位置，根据下拉距离实现下拉头下拉
+     */
+    private var actionDown = 0F
+
+    /**
+     * 下拉头会弹速度
+     */
+    private val SCROLL_SPEED = 15
 
 
     init {
@@ -39,20 +54,17 @@ class PullToRefresh(context: Context, attrs: AttributeSet) : LinearLayout(contex
     }
 
     override fun onTouch(v: View?, event: MotionEvent?): Boolean {
-        var moveDown = 0F
         when (event?.action) {
             MotionEvent.ACTION_DOWN -> {
-                moveDown = event.rawY
-                Log.d("zyz", "actionDown1 : ${moveDown}")
+                actionDown = event.rawY
             }
             MotionEvent.ACTION_MOVE -> {
                 val actionMove = event.rawY
-                Log.d("zyz", "actionDown2 : ${moveDown}")
-                val distance = actionMove - moveDown
+                val distance = actionMove - actionDown
                 height = (distance + hideHeaderHeight).toInt()
             }
             MotionEvent.ACTION_UP -> {
-                height = hideHeaderHeight
+                HideHeaderTask().execute()
             }
         }
         return true
@@ -62,5 +74,29 @@ class PullToRefresh(context: Context, attrs: AttributeSet) : LinearLayout(contex
         layoutParams.topMargin = height
         header.layoutParams = layoutParams
         Log.d("zyz", "${layoutParams.topMargin}")
+    }
+
+    inner class HideHeaderTask : AsyncTask<Void, Int, Int>() {
+        override fun doInBackground(vararg params: Void?): Int {
+            var topMargin = layoutParams.topMargin
+            while (topMargin > hideHeaderHeight) {
+                topMargin -= SCROLL_SPEED
+                publishProgress(topMargin)
+                Thread.sleep(10)
+            }
+            return topMargin
+        }
+
+        override fun onPostExecute(result: Int?) {
+            super.onPostExecute(result)
+            if (result != null) {
+                height = result
+            }
+        }
+
+        override fun onProgressUpdate(vararg values: Int?) {
+            super.onProgressUpdate(*values)
+            height = values[0]!!
+        }
     }
 }
